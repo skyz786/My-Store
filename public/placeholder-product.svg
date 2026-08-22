@@ -1,0 +1,13 @@
+<svg width="800" height="1000" viewBox="0 0 800 1000" xmlns="http://www.w3.org/2000/svg">
+  <rect width="800" height="1000" fill="#f1e9da"/>
+  <g stroke="#8b2338" stroke-width="2" fill="none" opacity="0.6">
+    <path d="M320 220 L400 270 L480 220 L560 290 L500 350 L520 720 H280 L300 350 L240 290 Z" />
+    <circle cx="400" cy="240" r="8" fill="#8b2338" stroke="none" />
+  </g>
+  <text x="400" y="800" text-anchor="middle" font-family="Georgia, serif" font-size="28" fill="#8b2338" font-weight="bold">
+    Kids Store
+  </text>
+  <text x="400" y="840" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" fill="#57503f">
+    Sample product — admin should replace with a real photo
+  </text>
+</svg>

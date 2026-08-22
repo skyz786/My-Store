@@ -1,0 +1,282 @@
+// Kids Store — Prisma schema
+// Database: PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ──────────────────────────────────────────────
+// ENUMS
+// ──────────────────────────────────────────────
+
+enum Role {
+  CUSTOMER
+  ADMIN
+}
+
+enum ProductStatus {
+  DRAFT
+  PUBLISHED
+  HIDDEN
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  COD
+  EASYPAISA
+}
+
+// ──────────────────────────────────────────────
+// USERS & AUTH
+// ──────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  phone        String?
+  passwordHash String
+  role         Role     @default(CUSTOMER)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  orders  Order[]
+  cart    Cart?
+  reviews Review[]
+
+  @@index([email])
+}
+
+// ──────────────────────────────────────────────
+// CATALOG
+// ──────────────────────────────────────────────
+
+model Category {
+  id        String    @id @default(cuid())
+  name      String
+  slug      String    @unique
+  createdAt DateTime  @default(now())
+  products  Product[]
+}
+
+model Product {
+  id              String        @id @default(cuid())
+  name            String
+  slug            String        @unique
+  description     String
+  price           Int // stored in PKR (whole rupees)
+  discountPrice   Int?
+  sku             String        @unique
+  stock           Int           @default(0)
+  status          ProductStatus @default(DRAFT)
+  isFeatured      Boolean       @default(false)
+  isNewArrival    Boolean       @default(false)
+  categoryId      String?
+  category        Category?     @relation(fields: [categoryId], references: [id])
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  images       ProductImage[]
+  sizes        ProductSize[]
+  cartItems    CartItem[]
+  orderItems   OrderItem[]
+  reviews      Review[]
+
+  @@index([status])
+  @@index([categoryId])
+}
+
+model ProductImage {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url       String
+  publicId  String // Cloudinary public_id, needed to delete/replace the asset
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([productId])
+}
+
+// One row per available age/size for a product, e.g. Age 8
+model ProductSize {
+  id        String  @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  age       Int // 5–14
+  inStock   Boolean @default(true)
+
+  measurement ProductMeasurement?
+
+  @@unique([productId, age])
+  @@index([productId])
+}
+
+// Exact tailoring measurements tied 1:1 to a ProductSize (age)
+model ProductMeasurement {
+  id            String      @id @default(cuid())
+  productSizeId String      @unique
+  productSize   ProductSize @relation(fields: [productSizeId], references: [id], onDelete: Cascade)
+
+  // Qameez (inches)
+  qameezLength Float
+  chest        Float
+  shoulder     Float
+  sleeveLength Float
+  neck         Float
+
+  // Shalwar (inches)
+  shalwarLength Float
+  waist         Float
+
+  notes String? // optional additional measurement notes
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  rating    Int // 1–5
+  comment   String?
+  createdAt DateTime @default(now())
+
+  @@index([productId])
+}
+
+// ──────────────────────────────────────────────
+// CART
+// ──────────────────────────────────────────────
+
+model Cart {
+  id        String     @id @default(cuid())
+  userId    String     @unique
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items     CartItem[]
+  updatedAt DateTime   @updatedAt
+}
+
+model CartItem {
+  id        String  @id @default(cuid())
+  cartId    String
+  cart      Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  age       Int
+  quantity  Int     @default(1)
+
+  @@unique([cartId, productId, age])
+  @@index([cartId])
+}
+
+// ──────────────────────────────────────────────
+// ORDERS
+// ──────────────────────────────────────────────
+
+model Order {
+  id            String        @id @default(cuid())
+  orderNumber   String        @unique
+  userId        String?
+  user          User?         @relation(fields: [userId], references: [id])
+
+  customerName  String
+  phone         String
+  whatsapp      String?
+  address       String
+  city          String
+  province      String
+  postalCode    String?
+  notes         String?
+
+  subtotal      Int
+  deliveryFee   Int
+  total         Int
+
+  paymentMethod PaymentMethod
+  paymentStatus PaymentStatus @default(PENDING)
+  orderStatus   OrderStatus   @default(PENDING)
+
+  items         OrderItem[]
+  payment       Payment?
+
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([userId])
+  @@index([orderStatus])
+  @@index([paymentStatus])
+}
+
+model OrderItem {
+  id           String  @id @default(cuid())
+  orderId      String
+  order        Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId    String
+  product      Product @relation(fields: [productId], references: [id])
+  productName  String // snapshot at time of order
+  age          Int
+  quantity     Int
+  unitPrice    Int // price at time of order (after discount if applicable)
+
+  @@index([orderId])
+}
+
+model Payment {
+  id            String        @id @default(cuid())
+  orderId       String        @unique
+  order         Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  method        PaymentMethod
+  status        PaymentStatus @default(PENDING)
+  amount        Int
+  transactionId String? // Easypaisa transaction / reference id
+  rawResponse   String? // JSON string of gateway response, for audit
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+}
+
+// ──────────────────────────────────────────────
+// COUPONS (optional)
+// ──────────────────────────────────────────────
+
+model Coupon {
+  id            String   @id @default(cuid())
+  code          String   @unique
+  percentOff    Int? // 0-100
+  amountOff     Int? // flat PKR amount
+  isActive      Boolean  @default(true)
+  expiresAt     DateTime?
+  createdAt     DateTime @default(now())
+}
+
+// ──────────────────────────────────────────────
+// SETTINGS (single row, admin-editable)
+// ──────────────────────────────────────────────
+
+model StoreSettings {
+  id                    String  @id @default("settings")
+  deliveryFee           Int     @default(200)
+  freeDeliveryThreshold Int?    @default(5000)
+  whatsappNumber        String  @default("")
+  storeName             String  @default("Kids Store")
+  updatedAt             DateTime @updatedAt
+}
